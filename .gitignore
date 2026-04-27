@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.claude/
+reports/
+~$*.xlsx
+*.xlsx
+.env
+.secrets
+*.egg-info/
+dist/
+build/
