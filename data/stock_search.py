@@ -27,12 +27,12 @@ def load_stock_list() -> pd.DataFrame:
         data = []
         while rs.error_code == "0" and rs.next():
             row = rs.get_row_data()
-            if len(row) >= 3 and row[0]:
-                bs_code = row[0]
-                # Only keep A-shares: sh.6xxxxx, sz.0xxxxx, sz.3xxxxx
-                if bs_code.startswith(("sh.6", "sz.0", "sz.3")):
+            if len(row) >= 3:
+                # Fields: tradeStatus, code, code_name
+                bs_code = row[1]
+                name = row[2]
+                if bs_code and name and bs_code.startswith(("sh.6", "sz.0", "sz.3")):
                     code = bs_code.split(".")[1]
-                    name = row[2] if len(row) > 2 else ""
                     data.append({"code": code, "name": name})
         bs.logout()
         if data:
