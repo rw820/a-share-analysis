@@ -1,12 +1,10 @@
 import pandas as pd
 import streamlit as st
 from config import get_exchange_prefix
-from datetime import datetime, timedelta
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def load_stock_list() -> pd.DataFrame:
-    # Try akshare first (works well from China)
+def load_stock_list_akshare() -> pd.DataFrame:
     try:
         import akshare as ak
         df = ak.stock_info_a_code_name()
@@ -15,48 +13,20 @@ def load_stock_list() -> pd.DataFrame:
             return df
     except Exception:
         pass
-
-    # Fallback: use baostock query_all_stock
-    try:
-        import baostock as bs
-        lg = bs.login()
-        if lg.error_code != "0":
-            return pd.DataFrame(columns=["code", "name"])
-        date = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d")
-        rs = bs.query_all_stock(date=date)
-        data = []
-        while rs.error_code == "0" and rs.next():
-            row = rs.get_row_data()
-            if len(row) >= 3:
-                # Fields: tradeStatus, code, code_name
-                bs_code = row[1]
-                name = row[2]
-                if bs_code and name and bs_code.startswith(("sh.6", "sz.0", "sz.3")):
-                    code = bs_code.split(".")[1]
-                    data.append({"code": code, "name": name})
-        bs.logout()
-        if data:
-            return pd.DataFrame(data)
-    except Exception:
-        try:
-            bs.logout()
-        except Exception:
-            pass
-
     return pd.DataFrame(columns=["code", "name"])
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def get_name_by_code(code: str) -> str:
-    """Get stock Chinese name by code, using baostock as last resort."""
-    bs_code = f"{get_exchange_prefix(code)}.{code}"
+def get_name_from_baostock(bs_code: str) -> str:
+    """Get Chinese stock name via baostock query_stock_basic."""
+    import baostock as bs
     try:
-        import baostock as bs
         lg = bs.login()
         if lg.error_code != "0":
-            return code
+            return ""
         rs = bs.query_stock_basic(code=bs_code)
-        name = code
+        # Returns: [code, code_name, ipoDate, outDate, type, status]
+        name = ""
         while rs.error_code == "0" and rs.next():
             row = rs.get_row_data()
             if len(row) > 1 and row[1]:
@@ -69,7 +39,7 @@ def get_name_by_code(code: str) -> str:
             bs.logout()
         except Exception:
             pass
-    return code
+        return ""
 
 
 def search_stocks(query: str) -> list[dict]:
@@ -77,8 +47,9 @@ def search_stocks(query: str) -> list[dict]:
     if not query:
         return []
 
-    stock_list = load_stock_list()
+    stock_list = load_stock_list_akshare()
 
+    # akshare has data — use it for search
     if not stock_list.empty:
         if query.isdigit() and len(query) == 6:
             matches = stock_list[stock_list["code"] == query]
@@ -96,10 +67,10 @@ def search_stocks(query: str) -> list[dict]:
                 })
             return results
 
-    # Last resort: direct code entry, try to get name from baostock
+    # akshare empty or no match — fallback to baostock for single code
     if query.isdigit() and len(query) == 6:
         bs_code = f"{get_exchange_prefix(query)}.{query}"
-        name = get_name_by_code(query)
-        return [{"code": query, "name": name, "bs_code": bs_code}]
+        name = get_name_from_baostock(bs_code)
+        return [{"code": query, "name": name or query, "bs_code": bs_code}]
 
     return []
