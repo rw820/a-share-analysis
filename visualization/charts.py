@@ -72,11 +72,12 @@ def create_main_chart(df: pd.DataFrame) -> go.Figure:
         fig.add_hline(y=30, line_dash="dash", line_color="green", row=4, col=1, opacity=0.5)
 
     fig.update_layout(
-        height=800,
+        height=700,
         xaxis_rangeslider_visible=False,
         template="plotly_white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=50, r=50, t=30, b=30),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
+        margin=dict(l=40, r=20, t=30, b=20),
+        dragmode="pan",
     )
 
     fig.update_yaxes(title_text="价格", row=1, col=1)
@@ -114,13 +115,15 @@ def create_forecast_chart(df: pd.DataFrame, forecast_dates, forecast_values, low
     ))
 
     fig.update_layout(
-        height=500,
+        height=400,
         template="plotly_white",
         title="走势预测",
+        title_font=dict(size=14),
         xaxis_title="日期",
         yaxis_title="价格",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=50, r=50, t=50, b=30),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
+        margin=dict(l=40, r=20, t=50, b=20),
+        dragmode="pan",
     )
 
     return fig
