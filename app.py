@@ -16,23 +16,17 @@ from prediction.ml_model import ml_forecast
 
 st.set_page_config(page_title="A股个股分析", layout="wide", initial_sidebar_state="collapsed")
 
-# Custom CSS
 st.markdown("""
 <style>
-/* Force metric values to wrap and not truncate */
 [data-testid="stMetricValue"] { white-space: normal !important; font-size: 1rem !important; overflow: visible !important; text-overflow: unset !important; }
 [data-testid="stMetricLabel"] { white-space: normal !important; font-size: 0.8rem !important; }
 [data-testid="stMetricDelta"] { white-space: normal !important; font-size: 0.85rem !important; }
 
-/* Signal card styling */
 .signal-card {
-    padding: 10px 14px;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    border-left: 4px solid;
-    background: #fafafa;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 4px; border-left: 4px solid; background: #fafafa;
 }
-.signal-card .label { font-size: 12px; color: #888; margin-bottom: 2px; }
+.signal-card .label { font-size: 11px; color: #888; margin-bottom: 2px; }
+.signal-card .sublabel { font-size: 10px; color: #aaa; }
 .signal-card .value { font-size: 15px; font-weight: 600; }
 .signal-bull { border-left-color: #ef4444; background: #fef2f2; }
 .signal-bull .value { color: #dc2626; }
@@ -41,22 +35,16 @@ st.markdown("""
 .signal-neutral { border-left-color: #f59e0b; background: #fffbeb; }
 .signal-neutral .value { color: #d97706; }
 
-/* Overall verdict banner */
 .verdict {
-    text-align: center;
-    padding: 12px 20px;
-    border-radius: 10px;
-    font-size: 18px;
-    font-weight: 700;
-    margin: 10px 0;
+    text-align: center; padding: 12px 20px; border-radius: 10px;
+    font-size: 18px; font-weight: 700; margin: 10px 0;
 }
 .verdict-bull { background: linear-gradient(135deg, #fef2f2, #fee2e2); color: #dc2626; border: 2px solid #fecaca; }
 .verdict-bear { background: linear-gradient(135deg, #f0fdf4, #dcfce7); color: #16a34a; border: 2px solid #bbf7d0; }
 .verdict-neutral { background: linear-gradient(135deg, #fffbeb, #fef3c7); color: #d97706; border: 2px solid #fde68a; }
 
-/* Mobile */
 @media (max-width: 768px) {
-    .block-container { padding-top: 0.5rem; padding-bottom: 1rem; padding-left: 1rem; padding-right: 1rem; }
+    .block-container { padding-top: 0.5rem; padding-bottom: 1rem; padding-left: 0.8rem; padding-right: 0.8rem; }
     h1 { font-size: 1.3rem !important; }
     .verdict { font-size: 15px; padding: 10px 14px; }
     .signal-card .value { font-size: 14px; }
@@ -146,23 +134,52 @@ metrics = get_key_metrics(df)
 arima_result = arima_forecast(df, forecast_days)
 ml_result = ml_forecast(df, forecast_days)
 
-# === Analyze signals ===
+# === Signals ===
 last_close = df["close"].iloc[-1]
 last_pct = df["pctChg"].iloc[-1] if "pctChg" in df.columns else 0
 
-SIGNAL_EXPLANATIONS = {
-    "趋势": "根据MA5/MA10/MA20/MA60四条均线的排列关系判断。\n多头排列(MA5>MA10>MA20>MA60)=短期买盘积极，看涨；\n空头排列(反过来)=卖压大，看空；\n交织=震荡，方向不明。",
-    "RSI": "相对强弱指标，反映近期涨跌力度。\nRSI>70说明近期涨幅过大，可能超买（要回调）；\nRSI<30说明近期跌幅过大，可能超卖（要反弹）；\n30-70为正常区间。",
-    "MACD": "MACD柱状图反映多空力量对比。\n红柱(>0)说明多头力量占优；\n绿柱(<0)说明空头力量占优。\nDIF线上穿DEA线叫'金叉'，是买入信号。",
-    "量价": "成交量与价格走势的关系。\n量价齐升=健康上涨；\n价涨量缩=上涨动力不足，注意风险；\n放量下跌=恐慌抛售，卖压大。",
-    "ML预测": "使用梯度提升机器学习模型，综合MA斜率、RSI、MACD、成交量比等10+个技术特征，\n在近500个交易日的历史数据上训练，预测未来涨跌方向和幅度。\n置信度>60%有参考价值。",
-    "ARIMA": "ARIMA是经典时间序列预测方法，根据历史价格的自相关规律推算未来走势。\n自动选择最优参数组合，提供预测价格和95%置信区间（波动范围）。",
+# Signal definitions with Chinese names and explanations
+SIGNAL_META = {
+    "趋势": {
+        "cn": "趋势判断",
+        "explain": "根据MA5/MA10/MA20/MA60四条均线的排列关系判断。\n"
+                   "多头排列(MA5>MA10>MA20>MA60)=短期买盘积极，看涨；\n"
+                   "空头排列(反过来)=卖压大，看空；交织=震荡，方向不明。",
+    },
+    "RSI": {
+        "cn": "RSI（相对强弱指标）",
+        "explain": "相对强弱指标，衡量近期涨跌力度。\n"
+                   "RSI>70说明近期涨幅过大，可能超买（要回调）；\n"
+                   "RSI<30说明近期跌幅过大，可能超卖（要反弹）；\n"
+                   "30-70为正常区间。",
+    },
+    "MACD": {
+        "cn": "MACD（指数平滑异同均线）",
+        "explain": "MACD柱状图反映多空力量对比。\n"
+                   "红柱(>0)说明多头力量占优；绿柱(<0)说明空头力量占优。\n"
+                   "DIF线上穿DEA线叫'金叉'，是买入信号。",
+    },
+    "量价": {
+        "cn": "量价关系",
+        "explain": "成交量与价格走势的关系。\n"
+                   "量价齐升=健康上涨；价涨量缩=上涨动力不足，注意风险；\n"
+                   "放量下跌=恐慌抛售，卖压大。",
+    },
+    "ML预测": {
+        "cn": "ML机器学习预测",
+        "explain": "使用梯度提升机器学习模型，综合MA斜率、RSI、MACD、成交量比等10+个技术特征，\n"
+                   "在近500个交易日的历史数据上训练，预测未来涨跌方向和幅度。\n置信度>60%有参考价值。",
+    },
+    "ARIMA": {
+        "cn": "ARIMA（时间序列预测）",
+        "explain": "ARIMA是经典时间序列预测方法，根据历史价格的自相关规律推算未来走势。\n"
+                   "自动选择最优参数组合，提供预测价格和95%置信区间（波动范围）。",
+    },
 }
 
 def classify(color):
-    return "bull" if color == "green" else ("bear" if color == "red" else "neutral")
+    return "bull" if color == "red" else ("bear" if color == "green" else "neutral")
 
-# Build signal list: (name, value, color, detail_text)
 signals = []
 
 # Trend
@@ -174,7 +191,6 @@ else:
     signals.append(("趋势", "震荡", "amber", trend_info.get("description", "")))
 
 # RSI
-rsi_val = None
 if "RSI" in df.columns:
     rsi_val = df["RSI"].iloc[-1]
     if pd.notna(rsi_val):
@@ -225,11 +241,10 @@ if arima_result.get("forecast") is not None:
         f"预测涨跌幅: {arima_pct:+.2f}%\n"
         f"波动范围: {arima_result['lower'][-1]:.2f} ~ {arima_result['upper'][-1]:.2f}"))
 
-# Overall score
+# Overall
 bull_count = sum(1 for _, _, c, _ in signals if c == "red")
 bear_count = sum(1 for _, _, c, _ in signals if c == "green")
 total = len(signals)
-# Note: in Chinese stock market convention, red=bullish, green=bearish
 
 if bull_count >= total * 0.6:
     overall_text = f"偏多 — {bull_count}/{total}个信号看涨，短期走势乐观"
@@ -241,50 +256,83 @@ else:
     overall_text = f"多空交织 — 看涨{bull_count}个/看跌{bear_count}个，建议观望"
     overall_cls = "neutral"
 
-# === Page Layout ===
+# ===================== PAGE LAYOUT =====================
 
-# Stock name
-st.markdown(f"## {selected_stock['name']}（{selected_stock['code']}）")
+# --- Stock header ---
+stock_name = selected_stock.get("name", selected_stock["code"])
+stock_code = selected_stock["code"]
+st.markdown(f"## {stock_name}（{stock_code}）")
 
-# Key price info — 2 columns only to avoid truncation
-col1, col2 = st.columns(2)
+# --- Price info ---
+col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("最新价", f"{last_close:.2f}")
 with col2:
     st.metric("涨跌幅", f"{last_pct:+.2f}%", delta_color="inverse" if last_pct < 0 else "normal")
+with col3:
+    if "turn" in df.columns and pd.notna(df["turn"].iloc[-1]):
+        st.metric("换手率", f"{df['turn'].iloc[-1]:.2f}%")
 
-# Overall verdict banner
+# --- Overall verdict ---
 st.markdown(f'<div class="verdict verdict-{overall_cls}">{overall_text}</div>', unsafe_allow_html=True)
 
-# Signal cards — 3 columns, 2 rows
-st.markdown("**信号分析**（点击卡片查看详解）")
-
-# Build signal rows
+# --- Signal cards ---
+st.markdown("**信号分析**（点击「查看详解」了解指标含义和当前数据来源）")
 signal_rows = [signals[i:i+3] for i in range(0, len(signals), 3)]
 for row in signal_rows:
     cols = st.columns(3)
     for i, (name, val, color, detail) in enumerate(row):
         with cols[i]:
             css_class = classify(color)
+            meta = SIGNAL_META.get(name, {})
+            cn_name = meta.get("cn", name)
+            explain = meta.get("explain", "")
+            # Card with Chinese name as label, English/short name as sublabel
             st.markdown(f"""
             <div class="signal-card signal-{css_class}">
-                <div class="label">{name}</div>
+                <div class="label">{cn_name}</div>
+                <div class="sublabel">{name}</div>
                 <div class="value">{val}</div>
             </div>
             """, unsafe_allow_html=True)
             with st.popover("查看详解"):
-                st.markdown(f"**{name}指标说明：**\n\n{SIGNAL_EXPLANATIONS.get(name, '')}\n\n---\n**当前数据：**\n{detail}")
+                st.markdown(f"**{cn_name}**\n\n{explain}\n\n---\n**当前数据：**\n{detail}")
 
-# === K-line chart ===
+# --- K-line chart (always visible) ---
 st.divider()
+st.subheader("K线图")
+st.caption("红蜡烛=上涨，绿蜡烛=下跌。彩色线是均线，灰色区域是布林带。支持鼠标滚轮/双指缩放。")
 fig = create_main_chart(df)
 st.plotly_chart(fig, use_container_width=True, config={
-    "scrollZoom": True,
-    "displayModeBar": True,
+    "scrollZoom": True, "displayModeBar": True,
     "modeBarButtonsToRemove": ["lasso2d", "select2d"],
 })
 
-# === Expandable details ===
+# --- Recent data (always visible) ---
+st.subheader("近期行情")
+display_cols = ["date", "open", "high", "low", "close", "volume", "pctChg"]
+show_cols = [c for c in display_cols if c in df.columns]
+recent = df[show_cols].tail(20).sort_values("date", ascending=False).copy()
+recent = recent.rename(columns={
+    "date": "日期", "open": "开盘价", "high": "最高价",
+    "low": "最低价", "close": "收盘价", "volume": "成交量", "pctChg": "涨跌幅",
+})
+if "涨跌幅" in recent.columns:
+    recent["涨跌幅"] = recent["涨跌幅"].apply(lambda x: f"{x:.2f}%")
+if "成交量" in recent.columns:
+    recent["成交量"] = recent["成交量"].apply(lambda x: f"{x:,.0f}")
+st.dataframe(recent, use_container_width=True, hide_index=True)
+
+# --- Detailed indicators (always visible) ---
+st.subheader("关键指标")
+st.caption("各技术指标当前数值，快速了解股票技术面状态。")
+metric_cols = st.columns(min(len(metrics), 4))
+for i, (k, v) in enumerate(metrics.items()):
+    metric_cols[i % len(metric_cols)].metric(k, v)
+
+# --- Expandable supplementary sections ---
+st.divider()
+
 with st.expander("支撑位 / 压力位"):
     c1, c2 = st.columns(2)
     with c1:
@@ -309,7 +357,7 @@ with st.expander("量能分析"):
     st.info(f"量价关系: {divergence}")
 
 with st.expander("预测详情"):
-    st.markdown("**ARIMA 时间序列预测**")
+    st.markdown("**ARIMA（时间序列预测）**")
     if arima_result.get("success"):
         st.caption(f"模型参数: ARIMA{arima_result['order']}")
     else:
@@ -332,7 +380,7 @@ with st.expander("预测详情"):
 
     st.divider()
 
-    st.markdown("**ML 机器学习预测**")
+    st.markdown("**ML（机器学习预测）**")
     if ml_result.get("success"):
         direction = ml_result["direction"]
         icon = "📈" if direction == "看涨" else "📉"
@@ -346,20 +394,6 @@ with st.expander("预测详情"):
         rc3.metric(f"{forecast_days}日收益", ml_result.get("20day_return", "N/A"))
     else:
         st.warning(ml_result.get("message", "数据不足"))
-
-with st.expander("近期行情数据"):
-    display_cols = ["date", "open", "high", "low", "close", "volume", "pctChg"]
-    show_cols = [c for c in display_cols if c in df.columns]
-    recent = df[show_cols].tail(20).sort_values("date", ascending=False).copy()
-    recent = recent.rename(columns={
-        "date": "日期", "open": "开盘价", "high": "最高价",
-        "low": "最低价", "close": "收盘价", "volume": "成交量", "pctChg": "涨跌幅",
-    })
-    if "涨跌幅" in recent.columns:
-        recent["涨跌幅"] = recent["涨跌幅"].apply(lambda x: f"{x:.2f}%")
-    if "成交量" in recent.columns:
-        recent["成交量"] = recent["成交量"].apply(lambda x: f"{x:,.0f}")
-    st.dataframe(recent, use_container_width=True, hide_index=True)
 
 st.markdown("---")
 st.markdown("*免责声明：本工具仅供学习研究，不构成任何投资建议。股市有风险，投资需谨慎。*")
