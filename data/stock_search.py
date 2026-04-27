@@ -14,6 +14,30 @@ def load_stock_list() -> pd.DataFrame:
         return pd.DataFrame(columns=["code", "name"])
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_stock_name_from_baostock(bs_code: str) -> str:
+    try:
+        import baostock as bs
+        lg = bs.login()
+        if lg.error_code != "0":
+            return ""
+        rs = bs.query_stock_basic(code=bs_code)
+        name = ""
+        while rs.error_code == "0" and rs.next():
+            row = rs.get_row_data()
+            if len(row) > 1:
+                name = row[1]
+            break
+        bs.logout()
+        return name
+    except Exception:
+        try:
+            bs.logout()
+        except Exception:
+            pass
+        return ""
+
+
 def search_stocks(query: str) -> list[dict]:
     query = query.strip()
     if not query:
@@ -22,9 +46,11 @@ def search_stocks(query: str) -> list[dict]:
     stock_list = load_stock_list()
 
     if stock_list.empty:
-        # Fallback: allow direct code entry even if akshare fails
+        # akshare failed — try direct code lookup via baostock
         if query.isdigit() and len(query) == 6:
-            return [{"code": query, "name": query, "bs_code": f"{get_exchange_prefix(query)}.{query}"}]
+            bs_code = f"{get_exchange_prefix(query)}.{query}"
+            name = get_stock_name_from_baostock(bs_code) or query
+            return [{"code": query, "name": name, "bs_code": bs_code}]
         return []
 
     if query.isdigit() and len(query) == 6:
