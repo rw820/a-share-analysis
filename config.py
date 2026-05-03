@@ -69,6 +69,7 @@ SCORE_BEAR_THRESHOLD = -0.15
 
 # ============ 新增：数据获取超时 ============
 DATA_FETCH_TIMEOUT = 15             # 单个数据源请求超时（秒）
+NETWORK_TIMEOUT = 25                # 单次网络请求超时（秒），cloud 环境需更长
 
 # ============ 新增：akshare 字段映射表 ============
 FINANCIAL_FIELD_MAP = {

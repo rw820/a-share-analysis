@@ -173,55 +173,60 @@ def fetch_index_kline(start, end, freq="d"):
 
 bs_code = selected_stock["bs_code"]
 
-with st.spinner("正在分析中..."):
-    # K线数据（技术面）
+with st.status("正在分析中，网络请求较多请耐心等待...", expanded=False) as status:
+    st.write("⏳ 获取K线数据...")
     df = fetch_kline(bs_code, start_date, end_date, freq)
+    if df.empty:
+        status.update(label="数据获取失败", state="error")
+        st.error("无法获取该股票数据，请检查股票代码或日期范围")
+        st.stop()
 
-    # 基本面/资金面数据（并行获取，每个独立容错）
+    st.write("⏳ 获取估值数据...")
     valuation_data = fetch_valuation(bs_code)
+    st.write("⏳ 获取PE历史...")
     pe_history_data = fetch_pe_history(bs_code)
+    st.write("⏳ 获取财务数据...")
     financial_data = fetch_financial(bs_code)
+    st.write("⏳ 获取资金流向...")
     fund_flow_data = fetch_fund_flow(bs_code)
+    st.write("⏳ 获取融资融券...")
     margin_data = fetch_margin(bs_code)
+    st.write("⏳ 获取近期公告...")
     notice_data = fetch_notices(bs_code, 30)
+    st.write("⏳ 获取分红记录...")
     dividend_data = fetch_dividends(bs_code)
+    st.write("⏳ 获取指数数据...")
     index_df = fetch_index_kline(start_date, end_date, freq)
+    st.write("⏳ 计算技术指标...")
+    df = compute_all_indicators(df)
+    trend_info = detect_trend(df)
+    sr = find_support_resistance(df)
+    vol_info = analyze_volume(df)
+    divergence = detect_volume_price_divergence(df)
+    metrics = get_key_metrics(df)
 
-if df.empty:
-    st.error("无法获取该股票数据，请检查股票代码或日期范围")
-    st.stop()
+    st.write("⏳ 生成预测...")
+    arima_result = arima_forecast(df, forecast_days)
+    ml_result = ml_forecast(df, forecast_days)
 
-# ==================== Compute ====================
-df = compute_all_indicators(df)
+    st.write("⏳ 评估基本面...")
+    pe_history = pe_history_data.get("data", {}).get("pe_values") if pe_history_data.get("success") else None
+    valuation_signal = get_valuation_signal(valuation_data, pe_history)
+    financial_signal = get_financial_signal(financial_data)
 
-# 技术面
-trend_info = detect_trend(df)
-sr = find_support_resistance(df)
-vol_info = analyze_volume(df)
-divergence = detect_volume_price_divergence(df)
-metrics = get_key_metrics(df)
+    st.write("⏳ 分析资金面...")
+    fund_flow_signal = get_fund_flow_signal(fund_flow_data)
+    float_mv = valuation_data.get("data", {}).get("float_mv") if valuation_data.get("success") else None
+    margin_signal = get_margin_signal(margin_data, float_mv)
 
-# 预测
-arima_result = arima_forecast(df, forecast_days)
-ml_result = ml_forecast(df, forecast_days)
+    st.write("⏳ 汇总消息面...")
+    event_signal = get_event_signal(notice_data)
+    dividend_info = get_dividend_signal(dividend_data)
 
-# 基本面
-pe_history = pe_history_data.get("data", {}).get("pe_values") if pe_history_data.get("success") else None
-valuation_signal = get_valuation_signal(valuation_data, pe_history)
-financial_signal = get_financial_signal(financial_data)
+    st.write("⏳ 评估风险...")
+    risk_signal = get_risk_signal(df, index_df)
 
-# 资金面
-fund_flow_signal = get_fund_flow_signal(fund_flow_data)
-# 融资融券需要流通市值
-float_mv = valuation_data.get("data", {}).get("float_mv") if valuation_data.get("success") else None
-margin_signal = get_margin_signal(margin_data, float_mv)
-
-# 消息面
-event_signal = get_event_signal(notice_data)
-dividend_info = get_dividend_signal(dividend_data)
-
-# 风险
-risk_signal = get_risk_signal(df, index_df)
+    status.update(label="分析完成！", state="complete", expanded=False)
 
 # ==================== Signals ====================
 last_close = df["close"].iloc[-1]

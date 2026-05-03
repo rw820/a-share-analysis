@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import akshare as ak
-from config import FUND_FLOW_CACHE_TTL, MARGIN_CACHE_TTL
+from config import FUND_FLOW_CACHE_TTL, MARGIN_CACHE_TTL, NETWORK_TIMEOUT
 
 try:
     import streamlit as st
@@ -26,18 +26,23 @@ def _cache_decorator(ttl):
         return lambda f: f
 
 
-def _retry_akshare(fn, name: str):
-    """Retry akshare calls up to MAX_RETRIES times with exponential backoff."""
+def _retry_akshare(fn, name: str, timeout: int | None = None):
+    """Retry akshare calls up to MAX_RETRIES times with timeout on each attempt."""
+    if timeout is None:
+        timeout = NETWORK_TIMEOUT
     last_err = None
     for attempt in range(MAX_RETRIES):
         try:
-            result = fn()
-            return result, None
+            result = _call_with_timeout(fn, timeout)
+            if result is None:
+                last_err = TimeoutError(f"{name} timed out after {timeout}s")
+            else:
+                return result, None
         except Exception as e:
             last_err = e
-            if attempt < MAX_RETRIES - 1:
-                delay = RETRY_BASE_DELAY * (2 ** attempt)
-                time.sleep(delay)
+        if attempt < MAX_RETRIES - 1:
+            delay = RETRY_BASE_DELAY * (2 ** attempt)
+            time.sleep(delay)
     return None, last_err
 
 
@@ -111,7 +116,7 @@ def get_fund_flow(bs_code: str) -> dict:
 
 # ==================== 融资融券 ====================
 
-MARGIN_API_TIMEOUT = 10  # seconds per margin API call
+MARGIN_API_TIMEOUT = 8  # seconds per margin API call
 
 def _call_with_timeout(fn, timeout: int):
     """Call a function with a timeout using ThreadPoolExecutor."""
@@ -167,7 +172,7 @@ def get_margin_data(bs_code: str) -> dict:
     try:
         history = []
         latest = None
-        for days_back in range(10):
+        for days_back in range(5):
             check_date = (today - timedelta(days=days_back)).strftime("%Y%m%d")
             entry = _get_margin_for_date(check_date, code, is_sh)
             if entry is not None:

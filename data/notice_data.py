@@ -1,10 +1,11 @@
 """
 消息面数据获取：公告
 """
+import concurrent.futures
 import pandas as pd
 import akshare as ak
 from datetime import datetime, timedelta
-from config import DIVIDEND_CACHE_TTL
+from config import DIVIDEND_CACHE_TTL, NETWORK_TIMEOUT
 
 try:
     import streamlit as st
@@ -22,21 +23,37 @@ def _cache_decorator(ttl):
 
 # ==================== 公告数据 ====================
 
+def _call_with_timeout(fn, timeout: int):
+    """Call a function with a timeout using ThreadPoolExecutor."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(fn)
+        try:
+            return future.result(timeout=timeout)
+        except (concurrent.futures.TimeoutError, Exception):
+            return None
+
+
 @_cache_decorator(DIVIDEND_CACHE_TTL)
 def get_recent_notices(bs_code: str, days: int = 30) -> dict:
     """获取近期公告列表"""
     code = bs_code.split(".")[-1]
     try:
         # Try stock_individual_notice_report first, fall back to stock_notice_report
-        try:
-            df = ak.stock_individual_notice_report(security=code)
-        except (AttributeError, TypeError):
-            df = ak.stock_notice_report()
-            if df is not None and not df.empty:
-                code_col = _find_code_column(df)
-                if code_col:
-                    mask = df[code_col].astype(str).str.contains(code, na=False)
-                    df = df[mask]
+        def _fetch_individual():
+            return ak.stock_individual_notice_report(security=code)
+
+        df = _call_with_timeout(_fetch_individual, NETWORK_TIMEOUT)
+        if df is None:
+            # Try fallback
+            def _fetch_all():
+                result = ak.stock_notice_report()
+                if result is not None and not result.empty:
+                    col = _find_code_column(result)
+                    if col:
+                        mask = result[col].astype(str).str.contains(code, na=False)
+                        return result[mask]
+                return result
+            df = _call_with_timeout(_fetch_all, NETWORK_TIMEOUT)
 
         if df is None or df.empty:
             return {"success": True, "data": {"notices": []}, "message": "近期无公告"}
