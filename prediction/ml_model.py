@@ -40,12 +40,15 @@ def ml_forecast(df: pd.DataFrame, forecast_days: int = 20) -> dict:
         last_row[0, -1] = pred
 
     last_close = df["close"].iloc[-1]
-    pred_prices = [last_close * (1 + p) for p in predictions]
+    pred_prices = [last_close * (1 + sum(predictions[:i+1])) for i in range(len(predictions))]
 
-    # Direction prediction
-    avg_pred = np.mean(predictions[:5])
-    direction = "看涨" if avg_pred > 0 else "看跌"
-    confidence = min(abs(avg_pred) * 100, 100)
+    # Direction: cumulative 20-day prediction (each pred is ~5-day return)
+    # Use sum of first 4 predictions for ~20-day outlook
+    cum_5d = predictions[0] if len(predictions) >= 1 else 0
+    cum_10d = sum(predictions[:2]) if len(predictions) >= 2 else 0
+    cum_20d = sum(predictions[:4]) if len(predictions) >= 4 else 0
+    direction = "看涨" if cum_20d > 0 else "看跌"
+    confidence = min(abs(cum_20d) * 100, 100)
 
     return {
         "success": True,
@@ -53,9 +56,9 @@ def ml_forecast(df: pd.DataFrame, forecast_days: int = 20) -> dict:
         "direction": direction,
         "confidence": confidence,
         "r2_score": score,
-        "5day_return": f"{predictions[4]:.2%}" if len(predictions) >= 5 else "N/A",
-        "10day_return": f"{predictions[9]:.2%}" if len(predictions) >= 10 else "N/A",
-        "20day_return": f"{predictions[-1]:.2%}",
+        "5day_return": f"{cum_5d:.2%}",
+        "10day_return": f"{cum_10d:.2%}",
+        "20day_return": f"{cum_20d:.2%}",
     }
 
 

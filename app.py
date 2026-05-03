@@ -839,6 +839,7 @@ with st.expander("预测详情"):
     st.divider()
 
     st.markdown("**ML（机器学习预测）**")
+    st.caption("GBDT集成模型基于量价/技术指标等多因子预测，目标为5日收益率。方向与预期收益基于累计预测值计算，方向与收益同源一致。")
     if ml_result.get("success"):
         direction = ml_result["direction"]
         icon = "📈" if direction == "看涨" else "📉"
@@ -847,9 +848,12 @@ with st.expander("预测详情"):
         mc2.metric("置信度", f"{ml_result['confidence']:.1f}%")
         mc3.metric("R²", f"{ml_result['r2_score']:.4f}")
         rc1, rc2, rc3 = st.columns(3)
-        rc1.metric("5日收益", ml_result.get("5day_return", "N/A"))
-        rc2.metric("10日收益", ml_result.get("10day_return", "N/A"))
-        rc3.metric(f"{forecast_days}日收益", ml_result.get("20day_return", "N/A"))
+        rc1.metric("累计5日", ml_result.get("5day_return", "N/A"),
+                  help="模型预测的5日累计收益率")
+        rc2.metric("累计10日", ml_result.get("10day_return", "N/A"),
+                  help="模型预测的10日累计收益率")
+        rc3.metric(f"累计{forecast_days}日", ml_result.get("20day_return", "N/A"),
+                  help=f"模型预测的{forecast_days}日累计收益率")
     else:
         st.warning(ml_result.get("message", "数据不足"))
 
