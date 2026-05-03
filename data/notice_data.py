@@ -65,6 +65,7 @@ def get_recent_notices(bs_code: str, days: int = 30) -> dict:
         for _, row in df.iterrows():
             title = str(row.get(col_map.get("title", ""), ""))
             date_val = row.get(col_map.get("date", ""))
+            url = str(row.get(col_map.get("url", ""), "")) if col_map.get("url") else ""
             if hasattr(date_val, "strftime"):
                 date_str = date_val.strftime("%Y-%m-%d")
             else:
@@ -76,6 +77,7 @@ def get_recent_notices(bs_code: str, days: int = 30) -> dict:
                     "title": title,
                     "date": date_str,
                     "type": _classify_notice(title),
+                    "url": url if url and url != "nan" else "",
                 })
 
         return {"success": True, "data": {"notices": notices}}
@@ -101,10 +103,14 @@ def _infer_columns(df: pd.DataFrame) -> dict:
             result["title"] = c
         elif "公告日期" in c or "日期" in c:
             result["date"] = c
+        elif "网址" in c or "url" in c.lower() or "地址" in c or "链接" in c:
+            result["url"] = c
     if "title" not in result:
         result["title"] = df.columns[2] if len(df.columns) > 2 else df.columns[0]
     if "date" not in result:
         result["date"] = df.columns[4] if len(df.columns) > 4 else df.columns[0]
+    if "url" not in result:
+        result["url"] = df.columns[5] if len(df.columns) > 5 else None
     return result
 
 

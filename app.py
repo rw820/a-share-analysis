@@ -16,6 +16,7 @@ from data.market_data import get_kline_data
 from data.fundamental_data import get_valuation_data, get_pe_history, get_financial_data, get_index_kline, get_dividend_history, get_industry_info
 from data.fund_flow_data import get_fund_flow, get_margin_data
 from data.notice_data import get_recent_notices
+from data.research_data import get_research_reports
 from analysis.technical_indicators import compute_all_indicators
 from analysis.trend_analysis import detect_trend, find_support_resistance, get_key_metrics
 from analysis.volume_analysis import analyze_volume, detect_volume_price_divergence
@@ -164,6 +165,10 @@ def fetch_notices(bs_code, days=30):
     return get_recent_notices(bs_code, days)
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
+def fetch_research(bs_code):
+    return get_research_reports(bs_code)
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
 def fetch_dividends(bs_code):
     return get_dividend_history(bs_code)
 
@@ -193,6 +198,8 @@ with st.status("正在分析中，网络请求较多请耐心等待...", expande
     margin_data = fetch_margin(bs_code)
     st.write("⏳ 获取近期公告...")
     notice_data = fetch_notices(bs_code, 30)
+    st.write("⏳ 获取机构研报...")
+    research_data = fetch_research(bs_code)
     st.write("⏳ 获取分红记录...")
     dividend_data = fetch_dividends(bs_code)
     st.write("⏳ 获取指数数据...")
@@ -685,6 +692,63 @@ with st.expander("融资融券"):
     else:
         st.info(f"融资融券数据不可用: {margin_data.get('reason', '')}")
 
+# 机构研报
+with st.expander("机构研报"):
+    st.caption("各券商研究所对公司未来EPS的一致预期：EPS均值反映盈利预测中枢，高/低反映分歧度；PE预测结合当前股价判断估值空间；评级分布看整体看多/看空倾向。")
+    if research_data.get("success"):
+        d = research_data["data"]
+
+        # Rating distribution
+        rating_dist = d.get("rating_distribution", {})
+        total = d.get("rating_total", 0)
+        if rating_dist and total > 0:
+            rating_order = ["买入", "增持", "中性", "减持", "卖出"]
+            rating_parts = []
+            for r in rating_order:
+                if r in rating_dist:
+                    rating_parts.append(f"**{r}**: {rating_dist[r]}篇({rating_dist[r]/total*100:.0f}%)")
+            if rating_parts:
+                st.markdown(" | ".join(rating_parts))
+
+        # EPS consensus table
+        eps_cons = d.get("eps_consensus", {})
+        pe_cons = d.get("pe_consensus", {})
+        if eps_cons:
+            st.markdown("**盈利预测一致预期**")
+            rc1, rc2, rc3 = st.columns(3)
+            for i, (col, year) in enumerate([(rc1, 2026), (rc2, 2027), (rc3, 2028)]):
+                eps_data = eps_cons.get(year, {})
+                pe_data = pe_cons.get(year, {})
+                with col:
+                    if eps_data:
+                        st.metric(
+                            f"{year}E EPS",
+                            f"{eps_data['mean']:.2f}",
+                            delta=f"高{eps_data['high']:.2f} / 低{eps_data['low']:.2f}"
+                        )
+                    if pe_data:
+                        st.caption(f"预测PE: {pe_data['mean']:.1f}")
+
+        # Recent reports
+        reports = d.get("reports", [])
+        if reports:
+            st.markdown("**最新研报**")
+            for r in reports[:10]:
+                title = r.get("title", "")
+                rating = r.get("rating", "")
+                org = r.get("org", "")
+                date = r.get("date", "")
+                pdf = r.get("pdf_url", "")
+                rating_emoji = {"买入": "🟢", "增持": "🔵", "中性": "⚪", "减持": "🟡", "卖出": "🔴"}.get(rating, "")
+                if pdf:
+                    st.caption(f"{date} | {rating_emoji}{rating} [{org}] [{title}]({pdf})")
+                else:
+                    st.caption(f"{date} | {rating_emoji}{rating} [{org}] {title}")
+        else:
+            st.info("暂无研报")
+    else:
+        st.info(f"研报数据不可用: {research_data.get('message', '')}")
+
 # 近期公告
 with st.expander("近期公告"):
     st.caption("公告是公司信息的第一手来源：业绩预告/快报影响短期估值；分红预案反映回馈股东意愿；增发/配股可能稀释每股收益；股东增减持反映内部人态度；重大事件(诉讼/重组/并购)可能改变基本面。")
@@ -699,7 +763,13 @@ with st.expander("近期公告"):
             }
             for n in notices[:15]:
                 t = type_names.get(n.get("type", "other"), n.get("type", ""))
-                st.caption(f"[{t}] {n.get('date', '')} - {n.get('title', '')}")
+                url = n.get("url", "")
+                title = n.get("title", "")
+                date = n.get("date", "")
+                if url:
+                    st.caption(f"[{t}] {date} - [{title}]({url})")
+                else:
+                    st.caption(f"[{t}] {date} - {title}")
         else:
             st.info("近期无公告")
     else:
